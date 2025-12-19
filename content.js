@@ -1,6 +1,7 @@
 // Default configuration
 const DEFAULT_CONFIG = {
     summaryFields: ['message', 'msg', 'level', 'error'],
+    summaryTemplate: '',
     enabled: true
 };
 
@@ -15,12 +16,79 @@ function log(msg) {
     console.log(`[Kibana JSON Formatter] ${msg}`);
 }
 
+// Helper to access nested properties safely
+function getByPath(obj, path) {
+    // Handle specific cases like "doc['field']" or "doc['field'].value"
+    // Clean up typical Painless/Groovy syntax wrappers if user copy-pasted them
+    // E.g. "doc['log.level']" -> "log.level"
+    // "doc['log.level'].value" -> "log.level"
+    let cleanPath = path.trim();
+    if (cleanPath.startsWith("doc['") || cleanPath.startsWith('doc["')) {
+        // Remove "doc['" and "']" or "'].value"
+        cleanPath = cleanPath.replace(/^doc\['|'\]\.value|'\]/g, '').replace(/^doc\["|"\]\.value|"\]/g, '');
+    } else if (cleanPath.startsWith("getValue(doc['")) {
+         // Handle getValue wrapper: getValue(doc['foo'])
+         cleanPath = cleanPath.replace(/^getValue\(doc\['|'\]\)/g, '').replace(/^getValue\(doc\["|"\]\)/g, '');
+    }
+
+    // Standard nested path resolution: a.b.c
+    return cleanPath.split('.').reduce((acc, part) => acc && acc[part], obj);
+}
+
 // Helper to safely create text nodes
 function createTextElement(tag, text, className) {
     const el = document.createElement(tag);
     el.textContent = text;
     if (className) el.className = className;
     return el;
+}
+
+function renderTemplate(template, json) {
+    if (!template || !template.trim()) return null;
+
+    // Strip function definition if present (user paste)
+    // Matches "String getValue(...) { ... }" blocks
+    let expr = template.replace(/String\s+getValue[^\{]*\{[\s\S]*?\}\s*/, '');
+    
+    let result = '';
+    
+    // Regex to match tokens in the expression part
+    // We match:
+    // 1. getValue(doc['path']...)
+    // 2. doc['path']...
+    // 3. 'string literal'
+    // 4. [W  (literals that might not be quoted if user typed raw text, but usually they are quoted in the example)
+    // Actually, in the user example: '...' + doc[...] + ...
+    // So we just search for specific patterns.
+    
+    // Pattern for getValue: getValue(doc['foo']) or getValue(doc["foo"])
+    // Pattern for doc: doc['foo'] or doc["foo"]
+    // Pattern for string literal: 'foo'
+    
+    const regex = /(?:getValue\(doc\['([^']+)'\](?:[\.\[\]a-zA-Z0-9_]+)?\)|getValue\(doc\["([^"]+)"\](?:[\.\[\]a-zA-Z0-9_]+)?\)|doc\['([^']+)'\](?:\.value)?|doc\["([^"]+)"\](?:\.value)?|'([^']*)')/g;
+    
+    let match;
+    let hasMatch = false;
+    
+    while ((match = regex.exec(expr)) !== null) {
+        hasMatch = true;
+        if (match[1] || match[2]) {
+            // getValue(doc['path']) - match[1] is path
+            const path = match[1] || match[2];
+            const val = getByPath(json, path);
+            result += (val !== undefined && val !== null) ? val : '';
+        } else if (match[3] || match[4]) {
+            // doc['path'] - match[3] is path
+            const path = match[3] || match[4];
+            const val = getByPath(json, path);
+            result += (val !== undefined && val !== null) ? val : 'undefined';
+        } else if (match[5] !== undefined) {
+            // string literal
+            result += match[5];
+        }
+    }
+    
+    return hasMatch ? result : null;
 }
 
 function processElement(element) {
@@ -62,27 +130,44 @@ function processElement(element) {
         const summaryContainer = document.createElement('div');
         summaryContainer.className = 'kibana-json-summary';
         
-        let foundSummary = false;
-        config.summaryFields.forEach(key => {
-            if (jsonObj.hasOwnProperty(key)) {
-                foundSummary = true;
-                const row = document.createElement('div');
-                row.className = 'kibana-json-summary-row';
-                
-                const keySpan = createTextElement('span', key + ':', 'kibana-json-key');
-                const valSpan = createTextElement('span', String(jsonObj[key]), 'kibana-json-value');
-                
-                row.appendChild(keySpan);
-                row.appendChild(valSpan);
-                summaryContainer.appendChild(row);
-            }
-        });
+        // 1. Check for Custom Template first
+        let renderedTemplate = null;
+        if (config.summaryTemplate && config.summaryTemplate.trim().length > 0) {
+            renderedTemplate = renderTemplate(config.summaryTemplate, jsonObj);
+        }
 
-        if (!foundSummary) {
+        if (renderedTemplate) {
+            // Render Template Result
             const row = document.createElement('div');
             row.className = 'kibana-json-summary-row';
-            row.appendChild(createTextElement('span', 'JSON Object', 'kibana-json-key'));
+            // Use pre-wrap to preserve spaces from template
+            row.style.whiteSpace = 'pre-wrap'; 
+            row.textContent = renderedTemplate;
             summaryContainer.appendChild(row);
+        } else {
+            // Standard Field List
+            let foundSummary = false;
+            config.summaryFields.forEach(key => {
+                if (jsonObj.hasOwnProperty(key)) {
+                    foundSummary = true;
+                    const row = document.createElement('div');
+                    row.className = 'kibana-json-summary-row';
+                    
+                    const keySpan = createTextElement('span', key + ':', 'kibana-json-key');
+                    const valSpan = createTextElement('span', String(jsonObj[key]), 'kibana-json-value');
+                    
+                    row.appendChild(keySpan);
+                    row.appendChild(valSpan);
+                    summaryContainer.appendChild(row);
+                }
+            });
+
+            if (!foundSummary) {
+                const row = document.createElement('div');
+                row.className = 'kibana-json-summary-row';
+                row.appendChild(createTextElement('span', 'JSON Object', 'kibana-json-key'));
+                summaryContainer.appendChild(row);
+            }
         }
         
         formattedView.appendChild(summaryContainer);
@@ -173,10 +258,11 @@ function init() {
     
     // Load config from storage
     try {
-        chrome.storage.sync.get(['summaryFields', 'enabled'], (result) => {
+        chrome.storage.sync.get(['summaryFields', 'enabled', 'summaryTemplate'], (result) => {
             log('Config loaded');
             if (result.summaryFields) config.summaryFields = result.summaryFields;
             if (result.enabled !== undefined) config.enabled = result.enabled;
+            if (result.summaryTemplate !== undefined) config.summaryTemplate = result.summaryTemplate;
             
             // Update UI state
             updateGlobalState();
@@ -287,9 +373,26 @@ function showSettingsModal() {
     
     const textarea = document.createElement('textarea');
     textarea.value = config.summaryFields.join(', ');
+    textarea.style.height = '60px'; // smaller height for fields
+
+    // Template Input
+    const templateLabel = document.createElement('label');
+    templateLabel.textContent = 'Custom Template (Painless-like):';
+    templateLabel.style.display = 'block';
+    templateLabel.style.marginTop = '15px';
+    templateLabel.style.marginBottom = '5px';
+    templateLabel.style.fontWeight = '500';
+    
+    const templateTextarea = document.createElement('textarea');
+    templateTextarea.value = config.summaryTemplate || '';
+    templateTextarea.placeholder = "Example: '' + doc['log.level'] + ' ' + getValue(doc['message'])";
+    templateTextarea.style.height = '120px';
+    templateTextarea.style.fontFamily = 'monospace';
+    templateTextarea.style.whiteSpace = 'pre';
     
     const actions = document.createElement('div');
     actions.className = 'kibana-json-modal-actions';
+    actions.style.marginTop = '20px';
     
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'kibana-json-btn kibana-json-btn-secondary';
@@ -304,9 +407,15 @@ function showSettingsModal() {
     saveBtn.onclick = () => {
         const rawValue = textarea.value;
         const fields = rawValue.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const templateValue = templateTextarea.value;
         
         config.summaryFields = fields;
-        chrome.storage.sync.set({ summaryFields: fields }, () => {
+        config.summaryTemplate = templateValue;
+        
+        chrome.storage.sync.set({ 
+            summaryFields: fields,
+            summaryTemplate: templateValue
+        }, () => {
             document.body.removeChild(overlay);
             location.reload(); 
         });
@@ -318,6 +427,8 @@ function showSettingsModal() {
     modal.appendChild(title);
     modal.appendChild(fieldLabel);
     modal.appendChild(textarea);
+    modal.appendChild(templateLabel);
+    modal.appendChild(templateTextarea);
     modal.appendChild(actions);
     
     overlay.appendChild(modal);
