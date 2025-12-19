@@ -30,7 +30,14 @@ function getByPath(obj, path) {
     cleanPath = cleanPath.replace(/^getValue\(|\)$/g, '');
 
     // Standard nested path resolution: a.b.c
-    return cleanPath.split('.').reduce((acc, part) => acc && acc[part], obj);
+    // If path is "log.level", we need to check obj["log.level"] FIRST (because JSON keys can contain dots)
+    // If not found, try nested obj["log"]["level"]
+    
+    // 1. Direct match (e.g. key is "log.level")
+    if (obj[cleanPath] !== undefined) return obj[cleanPath];
+
+    // 2. Nested match (split by dots)
+    return cleanPath.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj);
 }
 
 // Helper to safely create text nodes
