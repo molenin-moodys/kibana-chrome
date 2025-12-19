@@ -1,8 +1,9 @@
 /* Floating Controls */
 .kibana-json-floating-controls {
     position: fixed !important;
-    bottom: 20px !important;
+    top: 110px !important; /* Moved to top-right, below header */
     right: 20px !important;
+    bottom: auto !important;
     background: #fff;
     border: 1px solid #ccc;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);

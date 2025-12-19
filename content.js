@@ -236,8 +236,14 @@ function injectControls() {
     container.appendChild(label);
     container.appendChild(settingsBtn);
     
-    document.body.appendChild(container);
-    log('Controls injected');
+    const target = document.body || document.documentElement;
+    if (target) {
+        target.appendChild(container);
+        log('Controls injected');
+    } else {
+        log('Could not find target to inject controls');
+        setTimeout(injectControls, 1000);
+    }
 }
 
 function updateGlobalState() {
