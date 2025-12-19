@@ -1,7 +1,7 @@
 // Default configuration
 const DEFAULT_CONFIG = {
     summaryFields: ['message', 'msg', 'level', 'error'],
-    summaryTemplate: "'' +\nwrap['labels.ElapsedTime'] + ' ' +\nwrap['log.level'] + ' ' +\nwrap['metadata.Cpu'] + ' ' +\nwrap['labels.Formatted.Memory'] + ' ' +\nwrap['labels.WorkflowId'] +  ' ' + \ndoc['message'] + ' ' +\nwrap['log.logger'] +' \\n' +\nerror['error.message'] + ' \\n' + error['error.stack_trace']",
+    summaryTemplate: "'' +\nwrap['labels.ElapsedTime'] + ' ' +\nwrap['log.level'] + ' ' +\nwrap['metadata.Cpu'] + ' ' +\nwrap['labels.Formatted.Memory'] + ' ' +\nwrap['labels.WorkflowId'] +  ' ' + \nwrap['http.request.id'] +  '\\n' + \ndoc['message'] + ' ' +\nwrap['log.logger'] +' \\n' +\nerror['error.message'] + ' \\n' + error['error.stack_trace']",
     enabled: true
 };
 
@@ -28,38 +28,29 @@ function getByPath(obj, path) {
     if (obj[cleanPath] !== undefined) return obj[cleanPath];
 
     // 2. Traversal with support for dotted keys at any level
-    // We split by dot, but we need to check if combinations of parts form a key.
-    // e.g. a.b.c -> check a, then check b.c inside a? 
-    // OR check a.b inside root, then c?
-    
     const parts = cleanPath.split('.');
     
-    // Recursive search function
-    function search(currentObj, currentParts) {
-        if (currentParts.length === 0) return currentObj;
-        if (currentObj === undefined || currentObj === null || typeof currentObj !== 'object') return undefined;
-
-        // Try to match progressively larger chunks of the path
-        // e.g. for [a, b, c], try:
-        // key="a", remain=[b,c]
-        // key="a.b", remain=[c]
-        // key="a.b.c", remain=[]
+    // Try all possible combinations of key groupings
+    function tryPath(currentObj, pathParts, depth = 0) {
+        if (pathParts.length === 0) return currentObj;
+        if (currentObj === null || currentObj === undefined) return undefined;
+        if (typeof currentObj !== 'object') return undefined;
         
-        for (let i = 1; i <= currentParts.length; i++) {
-            const key = currentParts.slice(0, i).join('.');
-            const remainingParts = currentParts.slice(i);
+        // Try progressively longer key combinations, starting from longest
+        for (let i = pathParts.length; i >= 1; i--) {
+            const testKey = pathParts.slice(0, i).join('.');
+            const remaining = pathParts.slice(i);
             
-            // Exact match check
-            if (currentObj[key] !== undefined) {
-                const result = search(currentObj[key], remainingParts);
+            // Try exact match
+            if (currentObj.hasOwnProperty(testKey)) {
+                const result = tryPath(currentObj[testKey], remaining, depth + 1);
                 if (result !== undefined) return result;
             }
             
-            // Case-insensitive match check (Fallback)
-            const keys = Object.keys(currentObj);
-            const foundKey = keys.find(k => k.toLowerCase() === key.toLowerCase());
-            if (foundKey) {
-                const result = search(currentObj[foundKey], remainingParts);
+            // Try case-insensitive match
+            const matchedKey = Object.keys(currentObj).find(k => k.toLowerCase() === testKey.toLowerCase());
+            if (matchedKey && matchedKey !== testKey) {
+                const result = tryPath(currentObj[matchedKey], remaining, depth + 1);
                 if (result !== undefined) return result;
             }
         }
@@ -67,7 +58,7 @@ function getByPath(obj, path) {
         return undefined;
     }
 
-    return search(obj, parts);
+    return tryPath(obj, parts);
 }
 
 // Helper to safely create text nodes
