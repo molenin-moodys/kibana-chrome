@@ -1,9 +1,9 @@
 /* Floating Controls */
 .kibana-json-floating-controls {
     position: fixed !important;
-    top: 110px !important; /* Moved to top-right, below header */
-    right: 20px !important;
-    bottom: auto !important;
+    top: 110px; /* Removed !important to allow JS to move it */
+    right: 20px;
+    bottom: auto;
     background: #fff;
     border: 1px solid #ccc;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -18,7 +18,20 @@
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
+    cursor: move; /* Indicate draggable */
+    user-select: none;
 }
+
+/* Add a grip handle visual cue */
+.kibana-json-floating-controls::before {
+    content: "⋮";
+    color: #999;
+    font-size: 16px;
+    margin-right: 4px;
+    font-weight: bold;
+    cursor: move;
+}
+
 
 .kibana-json-control-label {
     display: flex;
@@ -99,6 +112,8 @@ input:checked + .kibana-json-slider {
 input:checked + .kibana-json-slider:before {
     transform: translateX(16px);
 }
+    /* ... keep existing ... */
+
 
 /* Visibility Toggling */
 .kibana-json-raw {

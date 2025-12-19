@@ -236,6 +236,9 @@ function injectControls() {
     container.appendChild(label);
     container.appendChild(settingsBtn);
     
+    // Make Draggable
+    makeDraggable(container);
+    
     const target = document.documentElement; // More robust than body
     if (target) {
         target.appendChild(container);
@@ -319,6 +322,74 @@ function showSettingsModal() {
     
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+}
+
+// --- Draggable Logic ---
+function makeDraggable(element) {
+    let isDragging = false;
+    let currentX;
+    let currentY;
+    let initialX;
+    let initialY;
+    let xOffset = 0;
+    let yOffset = 0;
+
+    // Load saved position
+    chrome.storage.sync.get(['posX', 'posY'], (result) => {
+        if (result.posX !== undefined && result.posY !== undefined) {
+            xOffset = result.posX;
+            yOffset = result.posY;
+            setTranslate(result.posX, result.posY, element);
+        }
+    });
+
+    element.addEventListener("mousedown", dragStart);
+    document.addEventListener("mouseup", dragEnd);
+    document.addEventListener("mousemove", drag);
+
+    function dragStart(e) {
+        // Allow clicking inputs and buttons without dragging if we want, 
+        // but dragging the whole container is fine.
+        // If we want to prevent drag on button click:
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.classList.contains('kibana-json-slider')) {
+             return;
+        }
+        
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+
+        if (element.contains(e.target)) {
+            isDragging = true;
+        }
+    }
+
+    function dragEnd(e) {
+        initialX = currentX;
+        initialY = currentY;
+        isDragging = false;
+        
+        // Save position
+        if (xOffset !== 0 || yOffset !== 0) {
+            chrome.storage.sync.set({ posX: xOffset, posY: yOffset });
+        }
+    }
+
+    function drag(e) {
+        if (isDragging) {
+            e.preventDefault();
+            currentX = e.clientX - initialX;
+            currentY = e.clientY - initialY;
+
+            xOffset = currentX;
+            yOffset = currentY;
+
+            setTranslate(currentX, currentY, element);
+        }
+    }
+
+    function setTranslate(xPos, yPos, el) {
+        el.style.transform = "translate3d(" + xPos + "px, " + yPos + "px, 0)";
+    }
 }
 
 // Keep-alive check for controls
