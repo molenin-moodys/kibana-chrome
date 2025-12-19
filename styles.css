@@ -22,6 +22,12 @@
     user-select: none;
 }
 
+.kibana-json-template-error {
+    color: #cc0000;
+    font-weight: bold;
+}
+
+
 /* Add a grip handle visual cue */
 .kibana-json-floating-controls::before {
     content: "⋮";
@@ -334,5 +340,9 @@ input:checked + .kibana-json-slider:before {
     
     .kibana-json-raw {
         color: #dfe5ef;
+    }
+
+    .kibana-json-template-error {
+        color: #ff6666;
     }
 }

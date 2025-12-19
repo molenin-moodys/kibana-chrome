@@ -18,21 +18,15 @@ function log(msg) {
 
 // Helper to access nested properties safely
 function getByPath(obj, path) {
-    // Handle specific cases like "doc['field']" or "doc['field'].value"
-    // Clean up typical Painless/Groovy syntax wrappers
-    // E.g. "doc['log.level']" -> "log.level"
+    // Handle specific cases like "doc['field']"
     let cleanPath = path.trim();
     if (cleanPath.startsWith("doc['") || cleanPath.startsWith('doc["')) {
-        // Remove "doc['" and "']" or "'].value"
         cleanPath = cleanPath.replace(/^doc\['|'\]\.value|'\]/g, '').replace(/^doc\["|"\]\.value|"\]/g, '');
     }
-    // Also remove getValue() wrapper if user left it in the path string (though regex below handles this mostly)
-    cleanPath = cleanPath.replace(/^getValue\(|\)$/g, '');
+    // Remove wrap/error prefixes if user pasted raw full tokens inside path (unlikely but safe)
+    cleanPath = cleanPath.replace(/^(wrap|error)\['|'\]/g, '').replace(/^(wrap|error)\["|"\]/g, '');
 
     // Standard nested path resolution: a.b.c
-    // If path is "log.level", we need to check obj["log.level"] FIRST (because JSON keys can contain dots)
-    // If not found, try nested obj["log"]["level"]
-    
     // 1. Direct match (e.g. key is "log.level")
     if (obj[cleanPath] !== undefined) return obj[cleanPath];
 
@@ -48,24 +42,32 @@ function createTextElement(tag, text, className) {
     return el;
 }
 
+function escapeHtml(text) {
+    if (!text) return text;
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function renderTemplate(template, json) {
     if (!template || !template.trim()) return null;
 
-    // Strip function definitions entirely (user might paste the whole script block)
+    // Strip function definitions (backward compatibility)
     let expr = template.replace(/String\s+getValue[^\{]*\{[\s\S]*?\}\s*/g, '');
-    
-    // Also remove any standalone calls to getValue(...) in the expression string itself if they exist
-    // Actually, we can just treat `getValue(...)` as a token to unwrap.
     
     let result = '';
     
-    // Regex to match tokens in the expression part
-    // We match:
-    // 1. getValue(doc['path']...) -> Group 1/2
-    // 2. doc['path']...           -> Group 3/4
-    // 3. 'string literal'         -> Group 5
+    // Updated Regex to match:
+    // 1. wrap['path']
+    // 2. doc['path']
+    // 3. error['path']
+    // 4. String literals '...'
     
-    const regex = /(?:getValue\(doc\['([^']+)'\](?:[\.\[\]a-zA-Z0-9_]+)?\)|getValue\(doc\["([^"]+)"\](?:[\.\[\]a-zA-Z0-9_]+)?\)|doc\['([^']+)'\](?:\.value)?|doc\["([^"]+)"\](?:\.value)?|'([^']*)')/g;
+    // Note: We handle both single ' and double " quotes for keys
+    const regex = /(?:wrap\['([^']+)'\]|wrap\["([^"]+)"\]|doc\['([^']+)'\]|doc\["([^"]+)"\]|error\['([^']+)'\]|error\["([^"]+)"\]|'([^']*)')/g;
     
     let match;
     let hasMatch = false;
@@ -75,22 +77,30 @@ function renderTemplate(template, json) {
         let val = undefined;
 
         if (match[1] || match[2]) {
-            // getValue(doc['path']) - treat same as doc['path']
+            // wrap['path'] -> [value]
             const path = match[1] || match[2];
             val = getByPath(json, path);
+            if (val !== undefined && val !== null) {
+                result += '[' + escapeHtml(val) + ']';
+            }
         } else if (match[3] || match[4]) {
-            // doc['path']
+            // doc['path'] -> value
             const path = match[3] || match[4];
             val = getByPath(json, path);
-        } else if (match[5] !== undefined) {
+            if (val !== undefined && val !== null) {
+                result += escapeHtml(val);
+            }
+        } else if (match[5] || match[6]) {
+            // error['path'] -> value (same as doc for now, just semantic intent)
+            const path = match[5] || match[6];
+            val = getByPath(json, path);
+            if (val !== undefined && val !== null) {
+                result += '<span class="kibana-json-template-error">' + escapeHtml(val) + '</span>';
+            }
+        } else if (match[7] !== undefined) {
             // string literal
-            result += match[5];
-            continue;
-        }
-
-        // If val exists, append it. If not, append nothing (ignore).
-        if (val !== undefined && val !== null) {
-            result += val;
+            // Unescape \n to real newline
+            result += escapeHtml(match[7].replace(/\\n/g, '\n'));
         }
     }
     
@@ -148,7 +158,7 @@ function processElement(element) {
             row.className = 'kibana-json-summary-row';
             // Use pre-wrap to preserve spaces from template
             row.style.whiteSpace = 'pre-wrap'; 
-            row.textContent = renderedTemplate;
+            row.innerHTML = renderedTemplate;
             summaryContainer.appendChild(row);
         } else {
             // Standard Field List
@@ -391,7 +401,7 @@ function showSettingsModal() {
     
     const templateTextarea = document.createElement('textarea');
     templateTextarea.value = config.summaryTemplate || '';
-    templateTextarea.placeholder = "Example: '' + doc['log.level'] + ' ' + getValue(doc['message'])";
+    templateTextarea.placeholder = "Example: wrap['log.level'] + ' ' + doc['message']";
     templateTextarea.style.height = '120px';
     templateTextarea.style.fontFamily = 'monospace';
     templateTextarea.style.whiteSpace = 'pre';
