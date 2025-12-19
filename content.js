@@ -19,17 +19,15 @@ function log(msg) {
 // Helper to access nested properties safely
 function getByPath(obj, path) {
     // Handle specific cases like "doc['field']" or "doc['field'].value"
-    // Clean up typical Painless/Groovy syntax wrappers if user copy-pasted them
+    // Clean up typical Painless/Groovy syntax wrappers
     // E.g. "doc['log.level']" -> "log.level"
-    // "doc['log.level'].value" -> "log.level"
     let cleanPath = path.trim();
     if (cleanPath.startsWith("doc['") || cleanPath.startsWith('doc["')) {
         // Remove "doc['" and "']" or "'].value"
         cleanPath = cleanPath.replace(/^doc\['|'\]\.value|'\]/g, '').replace(/^doc\["|"\]\.value|"\]/g, '');
-    } else if (cleanPath.startsWith("getValue(doc['")) {
-         // Handle getValue wrapper: getValue(doc['foo'])
-         cleanPath = cleanPath.replace(/^getValue\(doc\['|'\]\)/g, '').replace(/^getValue\(doc\["|"\]\)/g, '');
     }
+    // Also remove getValue() wrapper if user left it in the path string (though regex below handles this mostly)
+    cleanPath = cleanPath.replace(/^getValue\(|\)$/g, '');
 
     // Standard nested path resolution: a.b.c
     return cleanPath.split('.').reduce((acc, part) => acc && acc[part], obj);
@@ -46,24 +44,19 @@ function createTextElement(tag, text, className) {
 function renderTemplate(template, json) {
     if (!template || !template.trim()) return null;
 
-    // Strip function definition if present (user paste)
-    // Matches "String getValue(...) { ... }" blocks
-    let expr = template.replace(/String\s+getValue[^\{]*\{[\s\S]*?\}\s*/, '');
+    // Strip function definitions entirely (user might paste the whole script block)
+    let expr = template.replace(/String\s+getValue[^\{]*\{[\s\S]*?\}\s*/g, '');
+    
+    // Also remove any standalone calls to getValue(...) in the expression string itself if they exist
+    // Actually, we can just treat `getValue(...)` as a token to unwrap.
     
     let result = '';
     
     // Regex to match tokens in the expression part
     // We match:
-    // 1. getValue(doc['path']...)
-    // 2. doc['path']...
-    // 3. 'string literal'
-    // 4. [W  (literals that might not be quoted if user typed raw text, but usually they are quoted in the example)
-    // Actually, in the user example: '...' + doc[...] + ...
-    // So we just search for specific patterns.
-    
-    // Pattern for getValue: getValue(doc['foo']) or getValue(doc["foo"])
-    // Pattern for doc: doc['foo'] or doc["foo"]
-    // Pattern for string literal: 'foo'
+    // 1. getValue(doc['path']...) -> Group 1/2
+    // 2. doc['path']...           -> Group 3/4
+    // 3. 'string literal'         -> Group 5
     
     const regex = /(?:getValue\(doc\['([^']+)'\](?:[\.\[\]a-zA-Z0-9_]+)?\)|getValue\(doc\["([^"]+)"\](?:[\.\[\]a-zA-Z0-9_]+)?\)|doc\['([^']+)'\](?:\.value)?|doc\["([^"]+)"\](?:\.value)?|'([^']*)')/g;
     
@@ -72,19 +65,25 @@ function renderTemplate(template, json) {
     
     while ((match = regex.exec(expr)) !== null) {
         hasMatch = true;
+        let val = undefined;
+
         if (match[1] || match[2]) {
-            // getValue(doc['path']) - match[1] is path
+            // getValue(doc['path']) - treat same as doc['path']
             const path = match[1] || match[2];
-            const val = getByPath(json, path);
-            result += (val !== undefined && val !== null) ? val : '';
+            val = getByPath(json, path);
         } else if (match[3] || match[4]) {
-            // doc['path'] - match[3] is path
+            // doc['path']
             const path = match[3] || match[4];
-            const val = getByPath(json, path);
-            result += (val !== undefined && val !== null) ? val : 'undefined';
+            val = getByPath(json, path);
         } else if (match[5] !== undefined) {
             // string literal
             result += match[5];
+            continue;
+        }
+
+        // If val exists, append it. If not, append nothing (ignore).
+        if (val !== undefined && val !== null) {
+            result += val;
         }
     }
     
