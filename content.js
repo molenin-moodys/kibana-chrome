@@ -1,17 +1,19 @@
 // Default configuration
 const DEFAULT_CONFIG = {
-    summaryFields: ['message', 'msg', 'level', 'error']
+    summaryFields: ['message', 'msg', 'level', 'error'],
+    enabled: true
 };
 
 // Current configuration
 let config = { ...DEFAULT_CONFIG };
 
-// Load config from storage
-chrome.storage.sync.get(['summaryFields'], (result) => {
-    if (result.summaryFields) {
-        config.summaryFields = result.summaryFields;
-    }
-});
+// Flag to track initialization
+let initialized = false;
+
+// Debug logger
+function log(msg) {
+    console.log(`[Kibana JSON Formatter] ${msg}`);
+}
 
 // Helper to safely create text nodes
 function createTextElement(tag, text, className) {
@@ -36,10 +38,27 @@ function processElement(element) {
         // Mark as processed immediately
         element.dataset.kibanaJsonFormatterProcessed = 'true';
         
+        // Store original text
+        const originalText = element.innerText; // Keep formatting if any, or just innerText
+        
         // Clear the existing raw JSON text
         element.innerHTML = '';
         
-        // 1. Create Summary Section
+        // Create wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'kibana-json-formatter-wrapper';
+        
+        // 1. Raw View (Hidden by default via CSS when enabled)
+        const rawView = document.createElement('div');
+        rawView.className = 'kibana-json-raw';
+        rawView.textContent = originalText;
+        wrapper.appendChild(rawView);
+        
+        // 2. Formatted View (Visible by default via CSS when enabled)
+        const formattedView = document.createElement('div');
+        formattedView.className = 'kibana-json-formatted';
+        
+        // Summary Section
         const summaryContainer = document.createElement('div');
         summaryContainer.className = 'kibana-json-summary';
         
@@ -59,7 +78,6 @@ function processElement(element) {
             }
         });
 
-        // Fallback if no summary fields exist
         if (!foundSummary) {
             const row = document.createElement('div');
             row.className = 'kibana-json-summary-row';
@@ -67,9 +85,9 @@ function processElement(element) {
             summaryContainer.appendChild(row);
         }
         
-        element.appendChild(summaryContainer);
+        formattedView.appendChild(summaryContainer);
 
-        // 2. Create Details Section
+        // Details Section
         const detailsContainer = document.createElement('div');
         detailsContainer.className = 'kibana-json-details';
         
@@ -92,13 +110,12 @@ function processElement(element) {
             }
         };
         
-        // Add Settings Button to the first processed element (or inject a global one somewhere else)
-        // For simplicity, we'll append a small settings icon to the details container of every item for now,
-        // or we could rely on the browser action (popup). Let's do a popup for better UX.
-        
         detailsContainer.appendChild(toggleBtn);
         detailsContainer.appendChild(pre);
-        element.appendChild(detailsContainer);
+        formattedView.appendChild(detailsContainer);
+        
+        wrapper.appendChild(formattedView);
+        element.appendChild(wrapper);
         
     } catch (e) {
         // Parse error: ignore
@@ -136,21 +153,171 @@ const observer = new MutationObserver((mutations) => {
     scanForJsonFields();
 });
 
-observer.observe(document.body, {
-    childList: true,
-    subtree: true
-});
-
-// Listen for config changes from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'updateConfig') {
-        config.summaryFields = request.summaryFields;
-        // Ideally we would re-process everything here, but that requires
-        // removing the 'processed' flag and restoring innerHTML which is hard.
-        // Simple way: reload page. Better way: just acknowledge and user refreshes.
-        sendResponse({status: 'ok'});
-        location.reload(); 
+function init() {
+    if (initialized) return;
+    initialized = true;
+    
+    log('Initializing...');
+    
+    // Inject controls immediately
+    injectControls();
+    
+    // Start observing
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+    
+    // Initial scan
+    setTimeout(scanForJsonFields, 1000);
+    
+    // Load config from storage
+    try {
+        chrome.storage.sync.get(['summaryFields', 'enabled'], (result) => {
+            log('Config loaded');
+            if (result.summaryFields) config.summaryFields = result.summaryFields;
+            if (result.enabled !== undefined) config.enabled = result.enabled;
+            
+            // Update UI state
+            updateGlobalState();
+            updateControlsState();
+        });
+    } catch (e) {
+        log('Error loading storage: ' + e);
     }
-});
+}
 
-setTimeout(scanForJsonFields, 1000);
+// --- Controls UI ---
+
+function injectControls() {
+    if (document.getElementById('kibana-json-formatter-controls')) return;
+
+    const container = document.createElement('div');
+    container.id = 'kibana-json-formatter-controls';
+    container.className = 'kibana-json-floating-controls';
+    
+    // Toggle Switch
+    const label = document.createElement('label');
+    label.className = 'kibana-json-control-label';
+    label.title = 'Toggle JSON Formatting';
+    
+    const switchDiv = document.createElement('div');
+    switchDiv.className = 'kibana-json-switch';
+    
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.id = 'kibana-json-formatter-toggle-input';
+    input.checked = config.enabled;
+    input.onchange = (e) => {
+        config.enabled = e.target.checked;
+        chrome.storage.sync.set({ enabled: config.enabled });
+        updateGlobalState();
+    };
+    
+    const slider = document.createElement('span');
+    slider.className = 'kibana-json-slider';
+    
+    switchDiv.appendChild(input);
+    switchDiv.appendChild(slider);
+    
+    const textLabel = document.createElement('span');
+    textLabel.textContent = 'JSON View';
+    
+    label.appendChild(switchDiv);
+    label.appendChild(textLabel);
+    
+    // Settings Button
+    const settingsBtn = document.createElement('button');
+    settingsBtn.className = 'kibana-json-settings-btn';
+    settingsBtn.innerHTML = '⚙️'; // Gear icon
+    settingsBtn.title = 'Configure Fields';
+    settingsBtn.onclick = showSettingsModal;
+    
+    container.appendChild(label);
+    container.appendChild(settingsBtn);
+    
+    document.body.appendChild(container);
+    log('Controls injected');
+}
+
+function updateGlobalState() {
+    if (config.enabled) {
+        document.body.classList.remove('kibana-json-formatter-disabled');
+    } else {
+        document.body.classList.add('kibana-json-formatter-disabled');
+    }
+}
+
+function updateControlsState() {
+    const input = document.getElementById('kibana-json-formatter-toggle-input');
+    if (input) {
+        input.checked = config.enabled;
+    }
+}
+
+// --- Settings Modal ---
+
+function showSettingsModal() {
+    if (document.getElementById('kibana-json-modal-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'kibana-json-modal-overlay';
+    overlay.className = 'kibana-json-modal-overlay';
+    
+    const modal = document.createElement('div');
+    modal.className = 'kibana-json-modal';
+    
+    const title = document.createElement('h2');
+    title.textContent = 'JSON Formatter Settings';
+    
+    const fieldLabel = document.createElement('label');
+    fieldLabel.textContent = 'Summary Fields (comma separated):';
+    fieldLabel.style.display = 'block';
+    fieldLabel.style.marginBottom = '5px';
+    fieldLabel.style.fontWeight = '500';
+    
+    const textarea = document.createElement('textarea');
+    textarea.value = config.summaryFields.join(', ');
+    
+    const actions = document.createElement('div');
+    actions.className = 'kibana-json-modal-actions';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'kibana-json-btn kibana-json-btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => {
+        document.body.removeChild(overlay);
+    };
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'kibana-json-btn kibana-json-btn-primary';
+    saveBtn.textContent = 'Save & Reload';
+    saveBtn.onclick = () => {
+        const rawValue = textarea.value;
+        const fields = rawValue.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        
+        config.summaryFields = fields;
+        chrome.storage.sync.set({ summaryFields: fields }, () => {
+            document.body.removeChild(overlay);
+            location.reload(); 
+        });
+    };
+    
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+    
+    modal.appendChild(title);
+    modal.appendChild(fieldLabel);
+    modal.appendChild(textarea);
+    modal.appendChild(actions);
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+}
+
+// Start
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}

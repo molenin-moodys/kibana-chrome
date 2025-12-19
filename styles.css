@@ -1,5 +1,205 @@
+/* Floating Controls */
+.kibana-json-floating-controls {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 6px;
+    padding: 8px 12px;
+    z-index: 2147483647 !important; /* Max Z-Index */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
+.kibana-json-control-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    color: #333;
+    margin: 0;
+    font-weight: 500;
+}
+
+.kibana-json-settings-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    color: #666;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    transition: background 0.2s;
+}
+
+.kibana-json-settings-btn:hover {
+    background-color: #f0f0f0;
+    border-color: #ddd;
+}
+
+/* Toggle Switch */
+.kibana-json-switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    margin-right: 8px;
+}
+
+.kibana-json-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+}
+
+.kibana-json-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .3s;
+    border-radius: 20px;
+}
+
+.kibana-json-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+input:checked + .kibana-json-slider {
+    background-color: #007bff;
+}
+
+input:checked + .kibana-json-slider:before {
+    transform: translateX(16px);
+}
+
+/* Visibility Toggling */
+.kibana-json-raw {
+    display: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.kibana-json-formatter-disabled .kibana-json-raw {
+    display: block;
+}
+
+.kibana-json-formatter-disabled .kibana-json-formatted {
+    display: none;
+}
+
+/* Modal */
+.kibana-json-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 2147483647 !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.kibana-json-modal {
+    background: #fff;
+    padding: 24px;
+    border-radius: 8px;
+    width: 420px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    animation: kibanaJsonFadeIn 0.2s ease-out;
+}
+
+@keyframes kibanaJsonFadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.kibana-json-modal h2 {
+    margin-top: 0;
+    font-size: 18px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    color: #333;
+    font-weight: 600;
+}
+
+.kibana-json-modal textarea {
+    width: 100%;
+    height: 120px;
+    margin-bottom: 16px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+}
+
+.kibana-json-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.kibana-json-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.kibana-json-btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.kibana-json-btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.kibana-json-btn-secondary {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.kibana-json-btn-secondary:hover {
+    background-color: #e0e0e0;
+}
+
+/* Existing Styles for formatted JSON ... */
 .kibana-json-summary {
-    /* Use Kibana's standard monospaced font stack if possible, or fallback */
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
     font-size: 12px;
     margin-bottom: 4px;
@@ -14,7 +214,7 @@
 
 .kibana-json-key {
     font-weight: bold;
-    color: #000; /* Darker key for contrast */
+    color: #000;
     margin-right: 6px;
 }
 
@@ -38,8 +238,8 @@
 
 .kibana-json-parsed {
     display: none;
-    background-color: #f5f7fa; /* Light grey background similar to Kibana code blocks */
-    border: 1px solid #dce2e8; /* Kibana border color match */
+    background-color: #f5f7fa;
+    border: 1px solid #dce2e8;
     border-radius: 4px;
     padding: 8px;
     margin-top: 4px;
@@ -57,6 +257,45 @@
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
+    .kibana-json-floating-controls {
+        background: #2b2b2b;
+        border-color: #444;
+        color: #eee;
+    }
+    
+    .kibana-json-control-label {
+        color: #eee;
+    }
+    
+    .kibana-json-settings-btn {
+        color: #ccc;
+    }
+    
+    .kibana-json-settings-btn:hover {
+        background-color: #444;
+    }
+    
+    .kibana-json-modal {
+        background: #2b2b2b;
+        color: #eee;
+    }
+    
+    .kibana-json-modal h2 {
+        border-color: #444;
+        color: #eee;
+    }
+    
+    .kibana-json-modal textarea {
+        background: #1d1e24;
+        border-color: #444;
+        color: #eee;
+    }
+    
+    .kibana-json-btn-secondary {
+        background-color: #444;
+        color: #eee;
+    }
+    
     .kibana-json-key {
         color: #ddd;
     }
@@ -70,8 +309,12 @@
     }
     
     .kibana-json-parsed {
-        background-color: #1d1e24; /* Kibana dark mode bg */
+        background-color: #1d1e24;
         border-color: #343741;
+        color: #dfe5ef;
+    }
+    
+    .kibana-json-raw {
         color: #dfe5ef;
     }
 }
