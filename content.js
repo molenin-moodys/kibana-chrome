@@ -236,7 +236,7 @@ function injectControls() {
     container.appendChild(label);
     container.appendChild(settingsBtn);
     
-    const target = document.body || document.documentElement;
+    const target = document.documentElement; // More robust than body
     if (target) {
         target.appendChild(container);
         log('Controls injected');
@@ -320,6 +320,14 @@ function showSettingsModal() {
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 }
+
+// Keep-alive check for controls
+setInterval(() => {
+    if (!document.getElementById('kibana-json-formatter-controls')) {
+        log('Controls missing, re-injecting...');
+        injectControls();
+    }
+}, 2000);
 
 // Start
 if (document.readyState === 'loading') {
