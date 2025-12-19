@@ -1,0 +1,77 @@
+.kibana-json-summary {
+    /* Use Kibana's standard monospaced font stack if possible, or fallback */
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.kibana-json-summary-row {
+    margin-bottom: 2px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.kibana-json-key {
+    font-weight: bold;
+    color: #000; /* Darker key for contrast */
+    margin-right: 6px;
+}
+
+.kibana-json-value {
+    color: #333;
+}
+
+.kibana-json-toggle {
+    display: inline-block;
+    cursor: pointer;
+    color: #006bb3;
+    font-size: 11px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    user-select: none;
+    margin-top: 4px;
+}
+
+.kibana-json-toggle:hover {
+    text-decoration: underline;
+}
+
+.kibana-json-parsed {
+    display: none;
+    background-color: #f5f7fa; /* Light grey background similar to Kibana code blocks */
+    border: 1px solid #dce2e8; /* Kibana border color match */
+    border-radius: 4px;
+    padding: 8px;
+    margin-top: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 11px;
+    color: #333;
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.kibana-json-details.expanded .kibana-json-parsed {
+    display: block;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .kibana-json-key {
+        color: #ddd;
+    }
+    
+    .kibana-json-value {
+        color: #eee;
+    }
+    
+    .kibana-json-toggle {
+        color: #4dabf7;
+    }
+    
+    .kibana-json-parsed {
+        background-color: #1d1e24; /* Kibana dark mode bg */
+        border-color: #343741;
+        color: #dfe5ef;
+    }
+}
