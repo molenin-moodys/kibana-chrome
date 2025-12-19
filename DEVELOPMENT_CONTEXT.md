@@ -17,9 +17,10 @@ This Chrome extension improves the readability of JSON-formatted logs within the
     *   **Settings**: A gear icon opens a modal to configure fields and templates.
 4.  **Custom Templating**:
     *   Supports a subset of Painless/Groovy syntax to allow copy-pasting existing scripts.
-    *   **Syntax**: `getValue(doc['path'])`, `doc['path']`, `doc['path'].value`, and string concatenation.
-    *   **Clean Output**: Missing fields are ignored (no "undefined" or errors).
-    *   **Nested Keys**: Supports both true nested JSON (`obj.key`) and flattened dotted keys (`"obj.key": "value"`).
+    *   **Syntax**: `wrap['path']`, `doc['path']`, `error['path']`, and string concatenation. Supports `\n` for newlines.
+    *   **Clean Output**: Missing fields are trimmed.
+    *   **Nested Keys**: Supports complex nested structures where keys might contain dots (e.g. `labels.Formatted.Memory`).
+    *   **Case Insensitivity**: Fallback mechanism to find keys even if case differs (e.g. `formatted` vs `Formatted`).
 
 ## File Structure
 *   `manifest.json`: Extension entry point. Permissions: `storage`, `activeTab`, `scripting`. Version: 1.3.

@@ -1,7 +1,7 @@
 // Default configuration
 const DEFAULT_CONFIG = {
     summaryFields: ['message', 'msg', 'level', 'error'],
-    summaryTemplate: '',
+    summaryTemplate: "'' +\nwrap['labels.ElapsedTime'] + ' ' +\nwrap['log.level'] + ' ' +\nwrap['metadata.Cpu'] + ' ' +\nwrap['labels.Formatted.Memory'] + ' ' +\nwrap['labels.WorkflowId'] +  ' ' + \ndoc['message'] + ' ' +\nwrap['log.logger'] +' \\n' +\nerror['error.message'] + ' \\n' + error['error.stack_trace']",
     enabled: true
 };
 
@@ -18,20 +18,56 @@ function log(msg) {
 
 // Helper to access nested properties safely
 function getByPath(obj, path) {
-    // Handle specific cases like "doc['field']"
     let cleanPath = path.trim();
     if (cleanPath.startsWith("doc['") || cleanPath.startsWith('doc["')) {
         cleanPath = cleanPath.replace(/^doc\['|'\]\.value|'\]/g, '').replace(/^doc\["|"\]\.value|"\]/g, '');
     }
-    // Remove wrap/error prefixes if user pasted raw full tokens inside path (unlikely but safe)
     cleanPath = cleanPath.replace(/^(wrap|error)\['|'\]/g, '').replace(/^(wrap|error)\["|"\]/g, '');
 
-    // Standard nested path resolution: a.b.c
     // 1. Direct match (e.g. key is "log.level")
     if (obj[cleanPath] !== undefined) return obj[cleanPath];
 
-    // 2. Nested match (split by dots)
-    return cleanPath.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj);
+    // 2. Traversal with support for dotted keys at any level
+    // We split by dot, but we need to check if combinations of parts form a key.
+    // e.g. a.b.c -> check a, then check b.c inside a? 
+    // OR check a.b inside root, then c?
+    
+    const parts = cleanPath.split('.');
+    
+    // Recursive search function
+    function search(currentObj, currentParts) {
+        if (currentParts.length === 0) return currentObj;
+        if (currentObj === undefined || currentObj === null || typeof currentObj !== 'object') return undefined;
+
+        // Try to match progressively larger chunks of the path
+        // e.g. for [a, b, c], try:
+        // key="a", remain=[b,c]
+        // key="a.b", remain=[c]
+        // key="a.b.c", remain=[]
+        
+        for (let i = 1; i <= currentParts.length; i++) {
+            const key = currentParts.slice(0, i).join('.');
+            const remainingParts = currentParts.slice(i);
+            
+            // Exact match check
+            if (currentObj[key] !== undefined) {
+                const result = search(currentObj[key], remainingParts);
+                if (result !== undefined) return result;
+            }
+            
+            // Case-insensitive match check (Fallback)
+            const keys = Object.keys(currentObj);
+            const foundKey = keys.find(k => k.toLowerCase() === key.toLowerCase());
+            if (foundKey) {
+                const result = search(currentObj[foundKey], remainingParts);
+                if (result !== undefined) return result;
+            }
+        }
+        
+        return undefined;
+    }
+
+    return search(obj, parts);
 }
 
 // Helper to safely create text nodes
@@ -104,7 +140,7 @@ function renderTemplate(template, json) {
         }
     }
     
-    return hasMatch ? result : null;
+    return hasMatch ? result.trim() : null;
 }
 
 function processElement(element) {
@@ -383,19 +419,20 @@ function showSettingsModal() {
     
     const fieldLabel = document.createElement('label');
     fieldLabel.textContent = 'Summary Fields (comma separated):';
-    fieldLabel.style.display = 'block';
+    fieldLabel.style.display = 'none'; // Hidden as per request
     fieldLabel.style.marginBottom = '5px';
     fieldLabel.style.fontWeight = '500';
     
     const textarea = document.createElement('textarea');
     textarea.value = config.summaryFields.join(', ');
-    textarea.style.height = '60px'; // smaller height for fields
+    textarea.style.height = '60px'; 
+    textarea.style.display = 'none'; // Hidden as per request
 
     // Template Input
     const templateLabel = document.createElement('label');
     templateLabel.textContent = 'Custom Template (Painless-like):';
     templateLabel.style.display = 'block';
-    templateLabel.style.marginTop = '15px';
+    templateLabel.style.marginTop = '0'; // Adjusted margin since previous elements are hidden
     templateLabel.style.marginBottom = '5px';
     templateLabel.style.fontWeight = '500';
     
