@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Kibana JSON Message Formatter",
-  "version": "1.3",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvCGyJ/VI+FRk5zzNxoQvjnEXpvo97YdYfK4L6Pzzw31YRDgn3GwVC9qbrFUFR00a72jCK1RfO2Bnas4WCK+Qoz76+ub2N+YWc5Hgi1L24wwXvIYjixgY3e5pZaPdRY/W1bPidhraBT+a3GEs/djnvwSWTn5hWv5oZ7Kwr/vKxTchHz7hDiBaU8dmoh79wVNZybof8q59rkBgjIJ2AkewyHTd1NOy2nbBi+MkNOD/vihz8Gmn5PhXMuoIlL1W3Wmm11hwvDzDnrN3ntARCUthVSXhtERR2NpTDlm4xgxFJw0613aR3StNHt7IWcBeQZY3IpiOIyXJFe7IBu9CWcwigwIDAQAB",
+  "version": "1.4",
   "description": "Parses JSON in the 'message' field of Kibana logs and displays it formatted.",
   "permissions": ["activeTab", "scripting", "storage"],
   "content_scripts": [
